@@ -32,25 +32,6 @@ const Login: React.FC = () => {
     }
   }, [user, loading, registerOrLoginUser]);
 
-  const handleDemoLogin = (userId: string) => {
-    const demoUser = allUsers.find(u => u.id === userId);
-    if (demoUser) {
-      registerOrLoginUser(demoUser.id, demoUser.email, demoUser.username);
-    }
-    setIsDemoOpen(false);
-  };
-  
-  // Close demo dropdown if clicked outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (demoRef.current && !demoRef.current.contains(event.target as Node)) {
-        setIsDemoOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [demoRef]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -141,23 +122,40 @@ const Login: React.FC = () => {
     }
   };
 
+  const handleDemoLogin = (userId: string) => {
+    const demoUser = allUsers.find(u => u.id === userId);
+    if (demoUser) {
+      registerOrLoginUser(demoUser.id, demoUser.email, demoUser.username);
+    }
+    setIsDemoOpen(false);
+  };
+  
+  // Close demo dropdown if clicked outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (demoRef.current && !demoRef.current.contains(event.target as Node)) {
+                setIsDemoOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [demoRef]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-900 p-4">
         <div className="w-full max-w-md relative">
-            <div className="absolute -top-4 right-0 z-10" ref={demoRef}>
+            <div className="absolute top-4 right-4 z-10" ref={demoRef}>
                 <button 
                     onClick={() => setIsDemoOpen(!isDemoOpen)}
-                    className="flex items-center px-4 py-2 bg-neutral-700 text-white rounded-lg hover:bg-neutral-600 transition-colors shadow-lg"
+                    className="flex items-center p-2 bg-neutral-700 text-white rounded-full hover:bg-neutral-600"
                     aria-label="Access Demo Accounts"
                 >
                     <DemoIcon />
-                    <span className="text-sm font-medium">Modo Demo</span>
                 </button>
                 {isDemoOpen && (
                     <div className="absolute right-0 mt-2 w-64 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl animate-fade-in-down">
                         <div className="p-2">
-                             <p className="text-xs text-neutral-400 px-2 pb-1">Selecione um perfil demo:</p>
+                             <p className="text-xs text-neutral-400 px-2 pb-1">Select a demo profile to login:</p>
                             {allUsers.map(user => (
                                 <button
                                     key={user.id}

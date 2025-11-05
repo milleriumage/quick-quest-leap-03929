@@ -136,13 +136,13 @@ export const CreditsContext = createContext<CreditsContextType | undefined>(unde
 // --- PROVIDER COMPONENT ---
 export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Core State
-  const [balance, setBalance] = useState(0);
+  const [balance, setBalance] = useState(100);
   const [earnedBalances, setEarnedBalances] = useState<Record<string, number>>({});
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [creatorTransactions, setCreatorTransactions] = useState<CreatorTransaction[]>([]);
-  const [contentItems, setContentItems] = useState<ContentItem[]>([]);
-  const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>([]);
-  const [creditPackages, setCreditPackages] = useState<CreditPackage[]>([]);
+  const [contentItems, setContentItems] = useState<ContentItem[]>(INITIAL_CONTENT_ITEMS);
+  const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>(INITIAL_SUBSCRIPTION_PLANS);
+  const [creditPackages, setCreditPackages] = useState<CreditPackage[]>(INITIAL_CREDIT_PACKAGES);
   const [subscriptions, setSubscriptions] = useState({} as Record<string, UserSubscription | null>);
   const [unlockedContentIds, setUnlockedContentIds] = useState<string[]>([]);
   
@@ -155,7 +155,7 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
   // New User, Auth & Social State
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>(INITIAL_USERS);
   const [activeTagFilter, setTagFilter] = useState<string | null>(null);
   const [viewingCreatorId, setViewCreatorId] = useState<string | null>(null);
 
@@ -164,211 +164,6 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [sidebarVisibility, setSidebarVisibility] = useState<SidebarVisibility>(initialSidebarVisibility);
   const [navbarVisibility, setNavbarVisibility] = useState<NavbarVisibility>(initialNavbarVisibility);
-  const [isLoadingData, setIsLoadingData] = useState(false);
-
-  // Carregar dados do Supabase quando usuário faz login
-  useEffect(() => {
-    const loadUserData = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setIsLoadingData(true);
-        try {
-          // Carregar perfil
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-
-          if (profile) {
-            // Carregar followers
-            const { data: followersData } = await supabase
-              .from('followers')
-              .select('follower_id, following_id')
-              .or(`follower_id.eq.${session.user.id},following_id.eq.${session.user.id}`);
-
-            const followers = followersData?.filter(f => f.following_id === session.user.id).map(f => f.follower_id) || [];
-            const following = followersData?.filter(f => f.follower_id === session.user.id).map(f => f.following_id) || [];
-
-            const user: User = {
-              id: profile.id,
-              username: profile.username,
-              email: session.user.email || '',
-              profilePictureUrl: profile.profile_picture_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-              role: 'user',
-              followers,
-              following,
-              vitrineSlug: profile.vitrine_slug,
-            };
-
-            setCurrentUser(user);
-            setIsLoggedIn(true);
-            setBalance(profile.credits_balance || 0);
-            setEarnedBalances({ [profile.id]: profile.earned_balance || 0 });
-
-            // Carregar transações
-            const { data: transactionsData } = await supabase
-              .from('transactions')
-              .select('*')
-              .eq('user_id', session.user.id)
-              .order('timestamp', { ascending: false });
-
-            if (transactionsData) {
-              setTransactions(transactionsData.map(t => ({
-                id: t.id,
-                type: t.type as TransactionType,
-                amount: t.amount,
-                description: t.description || '',
-                timestamp: t.timestamp,
-              })));
-            }
-
-            // Carregar conteúdo desbloqueado
-            const { data: unlockedData } = await supabase
-              .from('unlocked_content')
-              .select('content_item_id')
-              .eq('user_id', session.user.id);
-
-            if (unlockedData) {
-              setUnlockedContentIds(unlockedData.map(u => u.content_item_id));
-            }
-
-            // Carregar assinatura
-            const { data: subData } = await supabase
-              .from('user_subscriptions')
-              .select('*, subscription_plans(*)')
-              .eq('user_id', session.user.id)
-              .eq('status', 'active')
-              .maybeSingle();
-
-            if (subData && subData.subscription_plans) {
-              const plan = subData.subscription_plans;
-              setSubscriptions({
-                [session.user.id]: {
-                  id: plan.id,
-                  name: plan.name,
-                  price: Number(plan.price),
-                  currency: plan.currency as 'USD' | 'BRL' | 'EUR',
-                  credits: plan.credits,
-                  features: plan.features,
-                  renewsOn: subData.renews_on,
-                  paymentMethod: 'Stripe',
-                  stripeProductId: plan.stripe_product_id,
-                }
-              });
-            }
-          }
-
-          // Carregar conteúdo (independente do usuário)
-          const { data: contentData } = await supabase
-            .from('content_items')
-            .select('*, media(*)')
-            .eq('is_hidden', false)
-            .order('created_at', { ascending: false });
-
-          if (contentData) {
-            const items: ContentItem[] = await Promise.all(contentData.map(async (item) => {
-              // Carregar likes
-              const { data: likesData } = await supabase
-                .from('likes')
-                .select('user_id')
-                .eq('content_item_id', item.id);
-
-              // Carregar shares
-              const { data: sharesData } = await supabase
-                .from('shares')
-                .select('user_id')
-                .eq('content_item_id', item.id);
-
-              // Carregar reactions
-              const { data: reactionsData } = await supabase
-                .from('reactions')
-                .select('user_id, emoji')
-                .eq('content_item_id', item.id);
-
-              const userReactions: Record<string, string> = {};
-              reactionsData?.forEach(r => {
-                userReactions[r.user_id] = r.emoji;
-              });
-
-              return {
-                id: item.id,
-                creatorId: item.creator_id,
-                title: item.title,
-                price: item.price,
-                imageUrl: item.media?.[0]?.storage_path || '',
-                mediaType: item.media?.[0]?.media_type || 'image',
-                userReactions,
-                mediaCount: {
-                  images: item.media?.filter((m: any) => m.media_type === 'image').length || 0,
-                  videos: item.media?.filter((m: any) => m.media_type === 'video').length || 0,
-                },
-                isHidden: item.is_hidden,
-                blurLevel: item.blur_level,
-                likedBy: likesData?.map(l => l.user_id) || [],
-                sharedBy: sharesData?.map(s => s.user_id) || [],
-                createdAt: item.created_at,
-                tags: item.tags || [],
-              };
-            }));
-            setContentItems(items);
-          }
-
-          // Carregar planos e pacotes
-          const { data: plansData } = await supabase.from('subscription_plans').select('*');
-          const { data: packagesData } = await supabase.from('credit_packages').select('*');
-
-          if (plansData) {
-            setSubscriptionPlans(plansData.map(p => ({
-              id: p.id,
-              name: p.name,
-              price: Number(p.price),
-              currency: p.currency as 'USD' | 'BRL' | 'EUR',
-              credits: p.credits,
-              features: p.features,
-              stripeProductId: p.stripe_product_id,
-            })));
-          }
-
-          if (packagesData) {
-            setCreditPackages(packagesData.map(p => ({
-              id: p.id,
-              credits: p.credits,
-              price: Number(p.price),
-              bonus: p.bonus,
-              bestValue: p.best_value,
-              stripeProductId: p.stripe_product_id,
-            })));
-          }
-        } catch (error) {
-          console.error('Erro ao carregar dados:', error);
-        } finally {
-          setIsLoadingData(false);
-        }
-      } else {
-        setIsLoggedIn(false);
-        setCurrentUser(null);
-      }
-    };
-
-    loadUserData();
-
-    // Listener para mudanças de autenticação
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_IN') {
-        loadUserData();
-      } else if (event === 'SIGNED_OUT') {
-        setIsLoggedIn(false);
-        setCurrentUser(null);
-        setBalance(0);
-        setTransactions([]);
-        setUnlockedContentIds([]);
-        setSubscriptions({});
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
 
   useEffect(() => {
       setWithdrawalTimeEnd(Date.now() + initialDevSettings.withdrawalCooldownHours * 3600 * 1000);
@@ -431,25 +226,11 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
     setViewCreatorId(null); 
   }, []);
   
-  const updateUserProfile = useCallback(async (updatedProfile: Partial<User>) => {
+  const updateUserProfile = useCallback((updatedProfile: Partial<User>) => {
       if (!currentUser) return;
       const updatedUser = { ...currentUser, ...updatedProfile };
       setCurrentUser(updatedUser);
       setAllUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
-
-      // Salvar no Supabase
-      try {
-        await supabase
-          .from('profiles')
-          .update({
-            username: updatedProfile.username,
-            profile_picture_url: updatedProfile.profilePictureUrl,
-            vitrine_slug: updatedProfile.vitrineSlug,
-          })
-          .eq('id', currentUser.id);
-      } catch (error) {
-        console.error('Erro ao atualizar perfil:', error);
-      }
   }, [currentUser]);
 
   const followUser = useCallback(async (userIdToFollow: string) => {
@@ -524,123 +305,59 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
     alert(`Link copied to clipboard!\n${url}`);
   }, [currentUser]);
 
-  const addTransaction = async (trans: Omit<Transaction, 'id' | 'timestamp'>) => {
-    if (!currentUser) return;
-    
-    const newTrans = { 
-      id: Date.now().toString(), 
-      timestamp: new Date().toISOString(), 
-      ...trans 
-    };
-    
-    setTransactions(prev => [newTrans, ...prev]);
-
-    // Salvar no Supabase
-    try {
-      await supabase.from('transactions').insert({
-        user_id: currentUser.id,
-        type: trans.type,
-        amount: trans.amount,
-        description: trans.description,
-      });
-    } catch (error) {
-      console.error('Erro ao salvar transação:', error);
-    }
+  const addTransaction = (trans: Omit<Transaction, 'id' | 'timestamp'>) => {
+     setTransactions(prev => [
+      { id: Date.now().toString(), timestamp: new Date().toISOString(), ...trans },
+      ...prev,
+    ]);
   };
 
-  const addCredits = useCallback(async (amount: number, description: string, type: TransactionType) => {
-    if (!currentUser) return;
-    
-    const newBalance = balance + amount;
-    setBalance(newBalance);
+  const addCredits = useCallback((amount: number, description: string, type: TransactionType) => {
+    setBalance(prev => prev + amount);
     addTransaction({ type, amount, description });
+  }, []);
 
-    // Atualizar saldo no Supabase
-    try {
-      await supabase
-        .from('profiles')
-        .update({ credits_balance: newBalance })
-        .eq('id', currentUser.id);
-    } catch (error) {
-      console.error('Erro ao atualizar créditos:', error);
-    }
-  }, [balance, currentUser]);
-
-  const processPurchase = useCallback(async (item: ContentItem) => {
+  const processPurchase = useCallback((item: ContentItem) => {
     if (!currentUser) return false;
     if (balance >= item.price) {
-      // Usar função do Supabase para compra segura
-      try {
-        const { data, error } = await supabase.rpc('purchase_content', {
-          item_id: item.id
-        });
+      setBalance(prev => prev - item.price);
+      addTransaction({ type: TransactionType.PURCHASE, amount: -item.price, description: `Purchase of ${item.title}` });
 
-        if (error) {
-          console.error('Erro na compra:', error);
-          return false;
-        }
+      const earnings = item.price * (1 - devSettings.platformCommission);
+      
+      setEarnedBalances(prev => ({
+          ...prev,
+          [item.creatorId]: (prev[item.creatorId] || 0) + earnings
+      }));
 
-        if (data) {
-          const result = data as { success: boolean; message: string };
-          if (result.success) {
-            // Atualizar estado local
-            setBalance(prev => prev - item.price);
-            setUnlockedContentIds(prev => [...prev, item.id]);
-            
-            addTransaction({ 
-              type: TransactionType.PURCHASE, 
-              amount: -item.price, 
-              description: `Purchase of ${item.title}` 
-            });
+      setCreatorTransactions(prev => [
+          {
+              id: `ctx_${Date.now()}`,
+              cardId: item.id,
+              cardTitle: item.title,
+              buyerId: currentUser.id,
+              amountReceived: earnings,
+              originalPrice: item.price,
+              timestamp: new Date().toISOString(),
+              mediaCount: item.mediaCount,
+          },
+          ...prev
+      ]);
+      
+      setUnlockedContentIds(prev => [...prev, item.id]);
 
-            return true;
-          }
-        }
-      } catch (error) {
-        console.error('Erro ao processar compra:', error);
-      }
+      return true;
     }
     return false;
-  }, [balance, currentUser]);
+  }, [balance, devSettings.platformCommission, currentUser]);
   
   const addReward = useCallback(() => {
     addCredits(REWARD_AMOUNT, 'Credits from watching ad', TransactionType.REWARD);
   }, [addCredits]);
 
-  const addContentItem = useCallback(async (item: ContentItem) => {
-    if (!currentUser) return;
-    
+  const addContentItem = useCallback((item: ContentItem) => {
     setContentItems(prev => [item, ...prev]);
-
-    // Salvar no Supabase
-    try {
-      const { data: contentData, error } = await supabase
-        .from('content_items')
-        .insert({
-          creator_id: currentUser.id,
-          title: item.title,
-          price: item.price,
-          blur_level: item.blurLevel,
-          tags: item.tags,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Salvar mídia
-      if (item.imageUrl && contentData) {
-        await supabase.from('media').insert({
-          content_item_id: contentData.id,
-          media_type: item.mediaType || 'image',
-          storage_path: item.imageUrl,
-          display_order: 0,
-        });
-      }
-    } catch (error) {
-      console.error('Erro ao criar conteúdo:', error);
-    }
-  }, [currentUser]);
+  }, []);
 
   const deleteContent = useCallback((itemId: string): boolean => {
     const item = contentItems.find(i => i.id === itemId);
