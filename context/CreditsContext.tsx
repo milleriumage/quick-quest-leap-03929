@@ -13,6 +13,28 @@ const initialDevSettings: DevSettings = {
   commentsEnabled: false,
 };
 
+export interface SidebarVisibility {
+  store: boolean;
+  outfitGenerator: boolean;
+  themeGenerator: boolean;
+  manageSubscription: boolean;
+  earnCredits: boolean;
+  createContent: boolean;
+  myCreations: boolean;
+  creatorPayouts: boolean;
+}
+
+const initialSidebarVisibility: SidebarVisibility = {
+  store: true,
+  outfitGenerator: true,
+  themeGenerator: true,
+  manageSubscription: true,
+  earnCredits: true,
+  createContent: false,
+  myCreations: false,
+  creatorPayouts: false,
+};
+
 // --- CONTEXT TYPE ---
 interface CreditsContextType {
   // State
@@ -45,6 +67,10 @@ interface CreditsContextType {
   // Theme state
   theme: 'light' | 'dark';
   setTheme: (theme: 'light' | 'dark') => void;
+
+  // Sidebar visibility state
+  sidebarVisibility: SidebarVisibility;
+  updateSidebarVisibility: (updates: Partial<SidebarVisibility>) => void;
 
   // Actions
   addCredits: (amount: number, description: string, type: TransactionType) => void;
@@ -121,6 +147,7 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
   // New Showcase & Theme State
   const [showcasedUserIds, setShowcasedUserIds] = useState<string[]>([]);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const [sidebarVisibility, setSidebarVisibility] = useState<SidebarVisibility>(initialSidebarVisibility);
 
   useEffect(() => {
       setWithdrawalTimeEnd(Date.now() + initialDevSettings.withdrawalCooldownHours * 3600 * 1000);
@@ -450,6 +477,10 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
   const timeoutInfo = useCallback((userId: string) => {
       return timeouts[userId];
   }, [timeouts]);
+
+  const updateSidebarVisibility = useCallback((updates: Partial<SidebarVisibility>) => {
+    setSidebarVisibility(prev => ({ ...prev, ...updates }));
+  }, []);
   
   const contextValue = useMemo(() => ({
     balance,
@@ -508,17 +539,19 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
     deleteAllContentFromCreator,
     isTimedOut,
     timeoutInfo,
+    sidebarVisibility,
+    updateSidebarVisibility,
   }), [
       balance, earnedBalance, transactions, creatorTransactions, contentItems, 
       subscriptionPlans, creditPackages, userSubscription, subscriptions, devSettings, currentUser, currentScreen,
       unlockedContentIds, withdrawalTimeEnd, isLoggedIn, allUsers, activeTagFilter, viewingCreatorId,
-      showcasedUserIds, theme,
+      showcasedUserIds, theme, sidebarVisibility,
       addCredits, processPurchase, addReward, addContentItem, deleteContent,
       updateSubscriptionPlan, updateCreditPackage, subscribeToPlan, cancelSubscription, subscribeUserToPlan, cancelUserSubscription,
       addReaction, addLike, incrementShareCount,
       login, logout, updateUserProfile, followUser, unfollowUser, setTagFilterCallback, setViewCreatorCallback, shareVitrine,
       setCurrentScreen, updateDevSettings, addCreditsToUser, toggleContentVisibility,
-      removeContent, setTimeOut, hideAllContentFromCreator, deleteAllContentFromCreator, isTimedOut, timeoutInfo
+      removeContent, setTimeOut, hideAllContentFromCreator, deleteAllContentFromCreator, isTimedOut, timeoutInfo, updateSidebarVisibility
   ]);
 
   return (

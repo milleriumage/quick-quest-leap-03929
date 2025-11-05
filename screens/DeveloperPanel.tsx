@@ -4,7 +4,7 @@ import { DevSettings, UserRole } from '../types';
 import DevSection from '../components/DevSection';
 
 const DeveloperPanel: React.FC = () => {
-    const { devSettings, updateDevSettings, addCreditsToUser, contentItems, setTimeOut, allUsers, hideAllContentFromCreator, deleteAllContentFromCreator } = useCredits();
+    const { devSettings, updateDevSettings, addCreditsToUser, contentItems, setTimeOut, allUsers, hideAllContentFromCreator, deleteAllContentFromCreator, sidebarVisibility, updateSidebarVisibility } = useCredits();
     
     const [localSettings, setLocalSettings] = useState<DevSettings>(devSettings);
     const [addCreditsData, setAddCreditsData] = useState({ userId: '', amount: '' });
@@ -133,6 +133,97 @@ const DeveloperPanel: React.FC = () => {
                            </ul>
                         </div>
                     )}
+                </div>
+            </DevSection>
+
+            <DevSection title="Sidebar Visibility">
+                <p className="text-sm text-neutral-400 mb-4">Control which menu items are visible to users in the sidebar</p>
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 bg-neutral-900 rounded-lg">
+                        <label htmlFor="store-visible" className="text-sm font-medium text-neutral-300">Store</label>
+                        <input 
+                            type="checkbox" 
+                            id="store-visible"
+                            checked={sidebarVisibility.store}
+                            onChange={(e) => updateSidebarVisibility({ store: e.target.checked })}
+                            className="h-4 w-4 rounded border-neutral-600 bg-neutral-900 text-brand-primary focus:ring-brand-primary"
+                        />
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-neutral-900 rounded-lg">
+                        <label htmlFor="outfit-visible" className="text-sm font-medium text-neutral-300">Outfit Studio</label>
+                        <input 
+                            type="checkbox" 
+                            id="outfit-visible"
+                            checked={sidebarVisibility.outfitGenerator}
+                            onChange={(e) => updateSidebarVisibility({ outfitGenerator: e.target.checked })}
+                            className="h-4 w-4 rounded border-neutral-600 bg-neutral-900 text-brand-primary focus:ring-brand-primary"
+                        />
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-neutral-900 rounded-lg">
+                        <label htmlFor="theme-visible" className="text-sm font-medium text-neutral-300">Theme Generator</label>
+                        <input 
+                            type="checkbox" 
+                            id="theme-visible"
+                            checked={sidebarVisibility.themeGenerator}
+                            onChange={(e) => updateSidebarVisibility({ themeGenerator: e.target.checked })}
+                            className="h-4 w-4 rounded border-neutral-600 bg-neutral-900 text-brand-primary focus:ring-brand-primary"
+                        />
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-neutral-900 rounded-lg">
+                        <label htmlFor="subscription-visible" className="text-sm font-medium text-neutral-300">My Subscription</label>
+                        <input 
+                            type="checkbox" 
+                            id="subscription-visible"
+                            checked={sidebarVisibility.manageSubscription}
+                            onChange={(e) => updateSidebarVisibility({ manageSubscription: e.target.checked })}
+                            className="h-4 w-4 rounded border-neutral-600 bg-neutral-900 text-brand-primary focus:ring-brand-primary"
+                        />
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-neutral-900 rounded-lg">
+                        <label htmlFor="credits-visible" className="text-sm font-medium text-neutral-300">Earn Credits</label>
+                        <input 
+                            type="checkbox" 
+                            id="credits-visible"
+                            checked={sidebarVisibility.earnCredits}
+                            onChange={(e) => updateSidebarVisibility({ earnCredits: e.target.checked })}
+                            className="h-4 w-4 rounded border-neutral-600 bg-neutral-900 text-brand-primary focus:ring-brand-primary"
+                        />
+                    </div>
+                    <div className="mt-4 pt-4 border-t border-neutral-700">
+                        <p className="text-xs font-semibold uppercase text-neutral-500 mb-3">Creator Tools</p>
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between p-3 bg-neutral-900 rounded-lg">
+                                <label htmlFor="create-content-visible" className="text-sm font-medium text-neutral-300">Create Content</label>
+                                <input 
+                                    type="checkbox" 
+                                    id="create-content-visible"
+                                    checked={sidebarVisibility.createContent}
+                                    onChange={(e) => updateSidebarVisibility({ createContent: e.target.checked })}
+                                    className="h-4 w-4 rounded border-neutral-600 bg-neutral-900 text-brand-primary focus:ring-brand-primary"
+                                />
+                            </div>
+                            <div className="flex items-center justify-between p-3 bg-neutral-900 rounded-lg">
+                                <label htmlFor="my-creations-visible" className="text-sm font-medium text-neutral-300">My Creations</label>
+                                <input 
+                                    type="checkbox" 
+                                    id="my-creations-visible"
+                                    checked={sidebarVisibility.myCreations}
+                                    onChange={(e) => updateSidebarVisibility({ myCreations: e.target.checked })}
+                                    className="h-4 w-4 rounded border-neutral-600 bg-neutral-900 text-brand-primary focus:ring-brand-primary"
+                                />
+                            </div>
+                            <div className="flex items-center justify-between p-3 bg-neutral-900 rounded-lg">
+                                <label htmlFor="creator-payouts-visible" className="text-sm font-medium text-neutral-300">Creator Payouts</label>
+                                <input 
+                                    type="checkbox" 
+                                    id="creator-payouts-visible"
+                                    checked={sidebarVisibility.creatorPayouts}
+                                    onChange={(e) => updateSidebarVisibility({ creatorPayouts: e.target.checked })}
+                                    className="h-4 w-4 rounded border-neutral-600 bg-neutral-900 text-brand-primary focus:ring-brand-primary"
+                                />
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </DevSection>
 

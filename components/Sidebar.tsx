@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Screen, UserRole } from '../types';
 import { useCredits } from '../hooks/useCredits';
 import { useAuth } from '../hooks/useAuth';
+import { SidebarVisibility } from '../context/CreditsContext';
 import ProfileHeader from './ProfileHeader';
 import GeminiModal from './GeminiModal';
 
@@ -72,10 +73,11 @@ interface NavConfig {
   label: string;
   icon: React.ReactNode;
   roles: UserRole[];
+  visibility?: keyof SidebarVisibility;
 }
 
 const Sidebar: React.FC = () => {
-  const { currentScreen, setCurrentScreen, userRole, logout, isLoggedIn, shareVitrine } = useCredits();
+  const { currentScreen, setCurrentScreen, userRole, logout, isLoggedIn, shareVitrine, sidebarVisibility } = useCredits();
   const { signOut } = useAuth();
   const [isGeminiModalOpen, setIsGeminiModalOpen] = useState(false);
   const [geminiMode, setGeminiMode] = useState<'improve' | 'analyze'>('improve');
@@ -92,21 +94,21 @@ const Sidebar: React.FC = () => {
 
   const navItems: NavConfig[] = [
     { screen: 'home', label: 'Home', icon: <HomeIcon />, roles: ['user', 'creator', 'developer'] },
-    { screen: 'store', label: 'Store', icon: <StoreIcon />, roles: ['user', 'creator', 'developer'] },
-    { screen: 'outfit-generator', label: 'Outfit Studio', icon: <OutfitIcon />, roles: ['user', 'creator', 'developer'] },
-    { screen: 'theme-generator', label: 'Theme Generator', icon: <ThemeGeneratorIcon />, roles: ['user', 'creator', 'developer'] },
+    { screen: 'store', label: 'Store', icon: <StoreIcon />, roles: ['user', 'creator', 'developer'], visibility: 'store' },
+    { screen: 'outfit-generator', label: 'Outfit Studio', icon: <OutfitIcon />, roles: ['user', 'creator', 'developer'], visibility: 'outfitGenerator' },
+    { screen: 'theme-generator', label: 'Theme Generator', icon: <ThemeGeneratorIcon />, roles: ['user', 'creator', 'developer'], visibility: 'themeGenerator' },
     { screen: 'account', label: 'My Account', icon: <AccountIcon />, roles: ['user', 'creator', 'developer'] },
-    { screen: 'manage-subscription', label: 'My Subscription', icon: <StarIcon />, roles: ['user', 'creator'] },
+    { screen: 'manage-subscription', label: 'My Subscription', icon: <StarIcon />, roles: ['user', 'creator'], visibility: 'manageSubscription' },
     { screen: 'history', label: 'History', icon: <HistoryIcon />, roles: ['user', 'creator', 'developer'] },
-    { screen: 'rewards', label: 'Earn Credits', icon: <GiftIcon />, roles: ['user', 'creator'] },
+    { screen: 'rewards', label: 'Earn Credits', icon: <GiftIcon />, roles: ['user', 'creator'], visibility: 'earnCredits' },
     { screen: 'pix-payment', label: 'Recarregar via PIX', icon: <PixIcon />, roles: ['user', 'creator', 'developer'] },
     { screen: 'livepix-payment', label: 'Recarregar via LivePix', icon: <LivePixIcon />, roles: ['user', 'creator', 'developer'] },
   ];
 
   const creatorItems: NavConfig[] = [
-      { screen: 'create-content', label: 'Create Content', icon: <PlusSquareIcon />, roles: ['creator', 'developer'] },
-      { screen: 'my-creations', label: 'My Creations', icon: <CreationsIcon />, roles: ['creator', 'developer'] },
-      { screen: 'creator-payouts', label: 'Creator Payouts', icon: <PayoutsIcon />, roles: ['creator'] },
+      { screen: 'create-content', label: 'Create Content', icon: <PlusSquareIcon />, roles: ['user', 'creator', 'developer'], visibility: 'createContent' },
+      { screen: 'my-creations', label: 'My Creations', icon: <CreationsIcon />, roles: ['user', 'creator', 'developer'], visibility: 'myCreations' },
+      { screen: 'creator-payouts', label: 'Creator Payouts', icon: <PayoutsIcon />, roles: ['user', 'creator', 'developer'], visibility: 'creatorPayouts' },
   ];
 
   const devItems: NavConfig[] = [
@@ -142,7 +144,10 @@ const Sidebar: React.FC = () => {
       <div className="flex-1 overflow-y-auto">
         <nav className="p-4">
             <ul className="space-y-2">
-            {navItems.filter(i => i.roles.includes(userRole)).map(item => (
+            {navItems
+              .filter(i => i.roles.includes(userRole))
+              .filter(i => !i.visibility || sidebarVisibility[i.visibility])
+              .map(item => (
                 <NavItem
                 key={item.screen}
                 screen={item.screen}
@@ -155,17 +160,20 @@ const Sidebar: React.FC = () => {
             </ul>
         </nav>
         
-        {(creatorItems.some(i => i.roles.includes(userRole)) || devItems.some(i => i.roles.includes(userRole))) && (
+        {(creatorItems.some(i => i.roles.includes(userRole) && (!i.visibility || sidebarVisibility[i.visibility])) || devItems.some(i => i.roles.includes(userRole))) && (
             <div className="px-6 py-4">
                 <div className="border-t border-neutral-700"></div>
             </div>
         )}
 
-        {creatorItems.some(i => i.roles.includes(userRole)) && (
+        {creatorItems.some(i => i.roles.includes(userRole) && (!i.visibility || sidebarVisibility[i.visibility])) && (
           <div className="px-4">
             <p className="px-2 text-xs font-semibold uppercase text-neutral-500 mb-2">Creator Tools</p>
              <ul className="space-y-2">
-                {creatorItems.filter(i => i.roles.includes(userRole)).map(item => (
+                {creatorItems
+                  .filter(i => i.roles.includes(userRole))
+                  .filter(i => !i.visibility || sidebarVisibility[i.visibility])
+                  .map(item => (
                     <NavItem
                     key={item.screen}
                     screen={item.screen}
