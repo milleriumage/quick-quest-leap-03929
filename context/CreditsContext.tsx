@@ -256,8 +256,15 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
     initializeAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event);
+      
       if (event === 'SIGNED_IN' && session?.user) {
-        await loadUserData(session.user.id);
+        setIsInitializing(true);
+        try {
+          await loadUserData(session.user.id);
+        } finally {
+          setIsInitializing(false);
+        }
       } else if (event === 'SIGNED_OUT') {
         logout();
       }
@@ -270,29 +277,46 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const loadUserData = async (userId: string) => {
     try {
-      // Load user profile
-      const { data: profile, error: profileError } = await supabase
+      console.log('Loading user data for:', userId);
+      
+      // Load user profile - CRITICAL DATA
+      const profileQuery = supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
 
-      if (profileError) throw profileError;
+      // Add 10 second timeout
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Profile load timeout')), 10000)
+      );
 
-      // Load followers and following
-      const [followersResult, followingResult] = await Promise.all([
-        supabase.from('followers').select('follower_id').eq('following_id', userId),
-        supabase.from('followers').select('following_id').eq('follower_id', userId)
-      ]);
+      const { data: profile, error: profileError } = await Promise.race([
+        profileQuery,
+        timeoutPromise
+      ]) as any;
 
+      if (profileError) {
+        console.error('Profile error:', profileError);
+        throw profileError;
+      }
+
+      if (!profile) {
+        console.error('No profile found for user:', userId);
+        throw new Error('Profile not found');
+      }
+
+      console.log('Profile loaded:', profile);
+
+      // Set basic user data immediately
       const user: User = {
         id: profile.id,
         username: profile.username,
-        email: '', // Email is in auth.users, not profiles
+        email: '',
         profilePictureUrl: profile.profile_picture_url || '',
         role: 'user',
-        followers: followersResult.data?.map(f => f.follower_id) || [],
-        following: followingResult.data?.map(f => f.following_id) || [],
+        followers: [],
+        following: [],
         vitrineSlug: profile.vitrine_slug || ''
       };
 
@@ -300,64 +324,95 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
       setIsLoggedIn(true);
       setBalance(profile.credits_balance || 0);
       setEarnedBalances(prev => ({ ...prev, [userId]: profile.earned_balance || 0 }));
+      setIsInitializing(false);
 
-      // Load user transactions
-      const { data: transactionsData } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('user_id', userId)
-        .order('timestamp', { ascending: false });
+      // Load additional data in background (non-blocking)
+      setTimeout(async () => {
+        try {
+          // Load followers and following
+          const [followersResult, followingResult] = await Promise.all([
+            supabase.from('followers').select('follower_id').eq('following_id', userId),
+            supabase.from('followers').select('following_id').eq('follower_id', userId)
+          ]);
 
-      if (transactionsData) {
-        setTransactions(transactionsData.map(t => ({
-          id: t.id,
-          type: t.type as TransactionType,
-          amount: t.amount,
-          description: t.description || '',
-          timestamp: t.timestamp
-        })));
-      }
-
-      // Load unlocked content
-      const { data: unlockedData } = await supabase
-        .from('unlocked_content')
-        .select('content_item_id')
-        .eq('user_id', userId);
-
-      if (unlockedData) {
-        setUnlockedContentIds(unlockedData.map(u => u.content_item_id));
-      }
-
-      // Load user subscription
-      const { data: subData } = await supabase
-        .from('user_subscriptions')
-        .select('*, subscription_plans(*)')
-        .eq('user_id', userId)
-        .eq('status', 'active')
-        .maybeSingle();
-
-      if (subData && subData.subscription_plans) {
-        const plan = subData.subscription_plans;
-        setSubscriptions(prev => ({
-          ...prev,
-          [userId]: {
-            id: plan.id,
-            name: plan.name,
-            price: Number(plan.price),
-            credits: plan.credits,
-            features: plan.features,
-            currency: plan.currency,
-            renewsOn: subData.renews_on,
-            paymentMethod: 'Credit Card'
+          if (followersResult.data || followingResult.data) {
+            setCurrentUser(prev => prev ? {
+              ...prev,
+              followers: followersResult.data?.map(f => f.follower_id) || [],
+              following: followingResult.data?.map(f => f.following_id) || []
+            } : null);
           }
-        }));
-      }
 
-      // Load all content items
-      await loadContentItems();
+          // Load user transactions
+          const { data: transactionsData } = await supabase
+            .from('transactions')
+            .select('*')
+            .eq('user_id', userId)
+            .order('timestamp', { ascending: false })
+            .limit(100);
+
+          if (transactionsData) {
+            setTransactions(transactionsData.map(t => ({
+              id: t.id,
+              type: t.type as TransactionType,
+              amount: t.amount,
+              description: t.description || '',
+              timestamp: t.timestamp
+            })));
+          }
+
+          // Load unlocked content
+          const { data: unlockedData } = await supabase
+            .from('unlocked_content')
+            .select('content_item_id')
+            .eq('user_id', userId);
+
+          if (unlockedData) {
+            setUnlockedContentIds(unlockedData.map(u => u.content_item_id));
+          }
+
+          // Load user subscription
+          const { data: subData } = await supabase
+            .from('user_subscriptions')
+            .select('*, subscription_plans(*)')
+            .eq('user_id', userId)
+            .eq('status', 'active')
+            .maybeSingle();
+
+          if (subData && subData.subscription_plans) {
+            const plan = subData.subscription_plans;
+            setSubscriptions(prev => ({
+              ...prev,
+              [userId]: {
+                id: plan.id,
+                name: plan.name,
+                price: Number(plan.price),
+                credits: plan.credits,
+                features: plan.features,
+                currency: plan.currency,
+                renewsOn: subData.renews_on,
+                paymentMethod: 'Credit Card'
+              }
+            }));
+          }
+
+          console.log('Additional user data loaded');
+        } catch (error) {
+          console.error('Error loading additional user data:', error);
+        }
+      }, 0);
+
+      // Load all content items in background
+      setTimeout(() => {
+        loadContentItems();
+      }, 100);
+
+      console.log('User data loaded successfully');
 
     } catch (error) {
       console.error('Error loading user data:', error);
+      setIsInitializing(false);
+      throw error;
     }
   };
 
