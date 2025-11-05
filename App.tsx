@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { CreditsProvider } from './context/CreditsContext';
-import { useCredits } from './hooks/useCredits';
 import { Screen } from './types';
 import Home from './screens/Home';
 import Store from './screens/Store';
@@ -25,6 +24,7 @@ import UserPlanManagement from './screens/UserPlanManagement';
 import ShowcaseManagement from './screens/ShowcaseManagement';
 import OutfitGenerator from './screens/OutfitGenerator';
 import ThemeGenerator from './screens/ThemeGenerator';
+import { useCredits } from './hooks/useCredits';
 
 const MainLayout: React.FC = () => {
   const { currentScreen, setCurrentScreen, currentUser, isTimedOut, timeoutInfo } = useCredits();

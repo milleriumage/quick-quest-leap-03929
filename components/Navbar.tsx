@@ -2,6 +2,7 @@
 import React from 'react';
 import CreditsBadge from './CreditsBadge';
 import { Screen } from '../types';
+import { useCredits } from '../hooks/useCredits';
 
 interface NavbarProps {
   navigate: (screen: Screen) => void;
@@ -12,25 +13,31 @@ const PlusIcon = () => (
 );
 
 const Navbar: React.FC<NavbarProps> = ({ navigate }) => {
+  const { navbarVisibility } = useCredits();
+
   return (
     <nav className="flex-shrink-0 bg-neutral-900/80 backdrop-blur-sm border-b border-neutral-700">
       <div className="mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-end h-16">
           <div className="flex items-center space-x-4">
             <CreditsBadge />
-            <button 
-              onClick={() => navigate('store')}
-              className="hidden sm:flex items-center bg-brand-primary hover:bg-brand-primary/90 text-white font-semibold py-2 px-4 rounded-full transition-colors duration-200"
-            >
-              <PlusIcon />
-              Add Credits
-            </button>
-             <button 
-              onClick={() => navigate('manage-subscription')}
-              className="hidden sm:flex items-center bg-neutral-700 hover:bg-neutral-600 text-white font-semibold py-2 px-4 rounded-full transition-colors duration-200"
-            >
-              Plan
-            </button>
+            {navbarVisibility.addCreditsButton && (
+              <button 
+                onClick={() => navigate('store')}
+                className="hidden sm:flex items-center bg-brand-primary hover:bg-brand-primary/90 text-white font-semibold py-2 px-4 rounded-full transition-colors duration-200"
+              >
+                <PlusIcon />
+                Add Credits
+              </button>
+            )}
+            {navbarVisibility.planButton && (
+              <button 
+                onClick={() => navigate('manage-subscription')}
+                className="hidden sm:flex items-center bg-neutral-700 hover:bg-neutral-600 text-white font-semibold py-2 px-4 rounded-full transition-colors duration-200"
+              >
+                Plan
+              </button>
+            )}
           </div>
         </div>
       </div>

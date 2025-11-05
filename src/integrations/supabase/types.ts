@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_settings: {
+        Row: {
+          created_at: string | null
+          dev_settings: Json
+          id: string
+          navbar_visibility: Json
+          sidebar_visibility: Json
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          dev_settings?: Json
+          id?: string
+          navbar_visibility?: Json
+          sidebar_visibility?: Json
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          dev_settings?: Json
+          id?: string
+          navbar_visibility?: Json
+          sidebar_visibility?: Json
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       content_items: {
         Row: {
           blur_level: number
@@ -112,6 +139,42 @@ export type Database = {
           id?: string
           type?: string
           used?: boolean
+        }
+        Relationships: []
+      }
+      external_payments: {
+        Row: {
+          amount: number
+          created_at: string | null
+          currency: string
+          id: string
+          metadata: Json | null
+          provider: string
+          provider_payment_id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          currency: string
+          id?: string
+          metadata?: Json | null
+          provider: string
+          provider_payment_id: string
+          status: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          currency?: string
+          id?: string
+          metadata?: Json | null
+          provider?: string
+          provider_payment_id?: string
+          status?: string
+          user_id?: string
         }
         Relationships: []
       }

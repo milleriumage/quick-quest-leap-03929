@@ -4,7 +4,20 @@ import { DevSettings, UserRole } from '../types';
 import DevSection from '../components/DevSection';
 
 const DeveloperPanel: React.FC = () => {
-    const { devSettings, updateDevSettings, addCreditsToUser, contentItems, setTimeOut, allUsers, hideAllContentFromCreator, deleteAllContentFromCreator, sidebarVisibility, updateSidebarVisibility } = useCredits();
+    const { 
+        devSettings, 
+        updateDevSettings, 
+        addCreditsToUser, 
+        contentItems, 
+        setTimeOut, 
+        allUsers, 
+        hideAllContentFromCreator, 
+        deleteAllContentFromCreator, 
+        sidebarVisibility, 
+        updateSidebarVisibility,
+        navbarVisibility,
+        updateNavbarVisibility
+    } = useCredits();
     
     const [localSettings, setLocalSettings] = useState<DevSettings>(devSettings);
     const [addCreditsData, setAddCreditsData] = useState({ userId: '', amount: '' });
@@ -223,6 +236,32 @@ const DeveloperPanel: React.FC = () => {
                                 />
                             </div>
                         </div>
+                    </div>
+                </div>
+            </DevSection>
+
+            <DevSection title="Navbar Visibility">
+                <p className="text-sm text-neutral-400 mb-4">Control which buttons are visible in the top navigation bar</p>
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 bg-neutral-900 rounded-lg">
+                        <label htmlFor="add-credits-btn" className="text-sm font-medium text-neutral-300">Add Credits Button</label>
+                        <input 
+                            type="checkbox" 
+                            id="add-credits-btn"
+                            checked={navbarVisibility.addCreditsButton}
+                            onChange={(e) => updateNavbarVisibility({ addCreditsButton: e.target.checked })}
+                            className="h-4 w-4 rounded border-neutral-600 bg-neutral-900 text-brand-primary focus:ring-brand-primary"
+                        />
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-neutral-900 rounded-lg">
+                        <label htmlFor="plan-btn" className="text-sm font-medium text-neutral-300">Plan Button</label>
+                        <input 
+                            type="checkbox" 
+                            id="plan-btn"
+                            checked={navbarVisibility.planButton}
+                            onChange={(e) => updateNavbarVisibility({ planButton: e.target.checked })}
+                            className="h-4 w-4 rounded border-neutral-600 bg-neutral-900 text-brand-primary focus:ring-brand-primary"
+                        />
                     </div>
                 </div>
             </DevSection>

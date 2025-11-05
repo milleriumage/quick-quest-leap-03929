@@ -2,6 +2,7 @@
 import React, { createContext, useState, useCallback, ReactNode, useMemo, useEffect } from 'react';
 import { User, Transaction, TransactionType, ContentItem, SubscriptionPlan, UserSubscription, DevSettings, UserRole, CreatorTransaction, UserTimeout, Screen, CreditPackage } from '../types';
 import { REWARD_AMOUNT, INITIAL_CONTENT_ITEMS, INITIAL_SUBSCRIPTION_PLANS, INITIAL_CREDIT_PACKAGES, INITIAL_USERS } from '../constants';
+import { supabase } from '../src/integrations/supabase/client';
 
 // --- DEFAULT STATES ---
 const initialDevSettings: DevSettings = {
@@ -24,6 +25,11 @@ export interface SidebarVisibility {
   creatorPayouts: boolean;
 }
 
+export interface NavbarVisibility {
+  addCreditsButton: boolean;
+  planButton: boolean;
+}
+
 const initialSidebarVisibility: SidebarVisibility = {
   store: true,
   outfitGenerator: true,
@@ -33,6 +39,11 @@ const initialSidebarVisibility: SidebarVisibility = {
   createContent: false,
   myCreations: false,
   creatorPayouts: false,
+};
+
+const initialNavbarVisibility: NavbarVisibility = {
+  addCreditsButton: true,
+  planButton: true,
 };
 
 // --- CONTEXT TYPE ---
@@ -71,6 +82,10 @@ interface CreditsContextType {
   // Sidebar visibility state
   sidebarVisibility: SidebarVisibility;
   updateSidebarVisibility: (updates: Partial<SidebarVisibility>) => void;
+  
+  // Navbar visibility state
+  navbarVisibility: NavbarVisibility;
+  updateNavbarVisibility: (updates: Partial<NavbarVisibility>) => void;
 
   // Actions
   addCredits: (amount: number, description: string, type: TransactionType) => void;
@@ -148,6 +163,7 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [showcasedUserIds, setShowcasedUserIds] = useState<string[]>([]);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [sidebarVisibility, setSidebarVisibility] = useState<SidebarVisibility>(initialSidebarVisibility);
+  const [navbarVisibility, setNavbarVisibility] = useState<NavbarVisibility>(initialNavbarVisibility);
 
   useEffect(() => {
       setWithdrawalTimeEnd(Date.now() + initialDevSettings.withdrawalCooldownHours * 3600 * 1000);
@@ -217,8 +233,9 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
       setAllUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
   }, [currentUser]);
 
-  const followUser = useCallback((userIdToFollow: string) => {
+  const followUser = useCallback(async (userIdToFollow: string) => {
     if (!currentUser || currentUser.id === userIdToFollow) return;
+    
     setAllUsers(prev => prev.map(user => {
         if (user.id === currentUser.id) {
             return { ...user, following: [...new Set([...user.following, userIdToFollow])] };
@@ -229,10 +246,20 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
         return user;
     }));
     setCurrentUser(prev => prev ? { ...prev, following: [...new Set([...prev.following, userIdToFollow])] } : null);
+
+    // Save to Supabase
+    try {
+      await supabase
+        .from('followers')
+        .insert({ follower_id: currentUser.id, following_id: userIdToFollow });
+    } catch (error) {
+      console.error('Error saving follow:', error);
+    }
   }, [currentUser]);
 
-  const unfollowUser = useCallback((userIdToUnfollow: string) => {
+  const unfollowUser = useCallback(async (userIdToUnfollow: string) => {
      if (!currentUser) return;
+     
      setAllUsers(prev => prev.map(user => {
         if (user.id === currentUser.id) {
             return { ...user, following: user.following.filter(id => id !== userIdToUnfollow) };
@@ -243,6 +270,17 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
         return user;
     }));
     setCurrentUser(prev => prev ? { ...prev, following: prev.following.filter(id => id !== userIdToUnfollow) } : null);
+
+    // Save to Supabase
+    try {
+      await supabase
+        .from('followers')
+        .delete()
+        .eq('follower_id', currentUser.id)
+        .eq('following_id', userIdToUnfollow);
+    } catch (error) {
+      console.error('Error removing follow:', error);
+    }
   }, [currentUser]);
 
   const setTagFilterCallback = useCallback((tag: string | null) => {
@@ -391,8 +429,9 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   }, [subscriptions]);
 
-  const addReaction = useCallback((itemId: string, emoji: string) => {
+  const addReaction = useCallback(async (itemId: string, emoji: string) => {
     if (!currentUser) return;
+    
     setContentItems(prev => prev.map(item => {
         if (item.id === itemId) {
             const newUserReactions = { ...item.userReactions };
@@ -405,10 +444,44 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
         }
         return item;
     }));
+
+    // Save to Supabase
+    try {
+      const { data: existingReaction } = await supabase
+        .from('reactions')
+        .select()
+        .eq('content_item_id', itemId)
+        .eq('user_id', currentUser.id)
+        .maybeSingle();
+
+      if (existingReaction && existingReaction.emoji === emoji) {
+        // Remove reaction
+        await supabase
+          .from('reactions')
+          .delete()
+          .eq('content_item_id', itemId)
+          .eq('user_id', currentUser.id);
+      } else if (existingReaction) {
+        // Update reaction
+        await supabase
+          .from('reactions')
+          .update({ emoji })
+          .eq('content_item_id', itemId)
+          .eq('user_id', currentUser.id);
+      } else {
+        // Insert new reaction
+        await supabase
+          .from('reactions')
+          .insert({ content_item_id: itemId, user_id: currentUser.id, emoji });
+      }
+    } catch (error) {
+      console.error('Error saving reaction:', error);
+    }
   }, [currentUser]);
 
-  const addLike = useCallback((itemId: string) => {
+  const addLike = useCallback(async (itemId: string) => {
       if (!currentUser) return;
+      
       setContentItems(prev => prev.map(item => {
           if (item.id === itemId) {
               const hasLiked = item.likedBy.includes(currentUser.id);
@@ -419,6 +492,32 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
           }
           return item;
       }));
+
+      // Save to Supabase
+      try {
+        const { data: existingLike } = await supabase
+          .from('likes')
+          .select()
+          .eq('content_item_id', itemId)
+          .eq('user_id', currentUser.id)
+          .maybeSingle();
+
+        if (existingLike) {
+          // Remove like
+          await supabase
+            .from('likes')
+            .delete()
+            .eq('content_item_id', itemId)
+            .eq('user_id', currentUser.id);
+        } else {
+          // Add like
+          await supabase
+            .from('likes')
+            .insert({ content_item_id: itemId, user_id: currentUser.id });
+        }
+      } catch (error) {
+        console.error('Error saving like:', error);
+      }
   }, [currentUser]);
 
   const incrementShareCount = useCallback((itemId: string) => {
@@ -481,6 +580,10 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
   const updateSidebarVisibility = useCallback((updates: Partial<SidebarVisibility>) => {
     setSidebarVisibility(prev => ({ ...prev, ...updates }));
   }, []);
+
+  const updateNavbarVisibility = useCallback((updates: Partial<NavbarVisibility>) => {
+    setNavbarVisibility(prev => ({ ...prev, ...updates }));
+  }, []);
   
   const contextValue = useMemo(() => ({
     balance,
@@ -541,17 +644,19 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
     timeoutInfo,
     sidebarVisibility,
     updateSidebarVisibility,
+    navbarVisibility,
+    updateNavbarVisibility,
   }), [
       balance, earnedBalance, transactions, creatorTransactions, contentItems, 
       subscriptionPlans, creditPackages, userSubscription, subscriptions, devSettings, currentUser, currentScreen,
       unlockedContentIds, withdrawalTimeEnd, isLoggedIn, allUsers, activeTagFilter, viewingCreatorId,
-      showcasedUserIds, theme, sidebarVisibility,
-      addCredits, processPurchase, addReward, addContentItem, deleteContent,
-      updateSubscriptionPlan, updateCreditPackage, subscribeToPlan, cancelSubscription, subscribeUserToPlan, cancelUserSubscription,
-      addReaction, addLike, incrementShareCount,
-      login, logout, updateUserProfile, followUser, unfollowUser, setTagFilterCallback, setViewCreatorCallback, shareVitrine,
-      setCurrentScreen, updateDevSettings, addCreditsToUser, toggleContentVisibility,
-      removeContent, setTimeOut, hideAllContentFromCreator, deleteAllContentFromCreator, isTimedOut, timeoutInfo, updateSidebarVisibility
+      showcasedUserIds, theme, addCredits, processPurchase, addReward, addContentItem, deleteContent, 
+      updateSubscriptionPlan, updateCreditPackage, subscribeToPlan, cancelSubscription, subscribeUserToPlan, 
+      cancelUserSubscription, addReaction, addLike, incrementShareCount, login, logout, registerOrLoginUser, 
+      updateUserProfile, followUser, unfollowUser, setTagFilterCallback, setViewCreatorCallback, shareVitrine, 
+      updateDevSettings, addCreditsToUser, toggleContentVisibility, removeContent, setTimeOut, 
+      hideAllContentFromCreator, deleteAllContentFromCreator, isTimedOut, timeoutInfo, sidebarVisibility, 
+      updateSidebarVisibility, navbarVisibility, updateNavbarVisibility,
   ]);
 
   return (

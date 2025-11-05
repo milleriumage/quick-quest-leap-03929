@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { useCredits } from '../hooks/useCredits';
 import { TransactionType } from '../types';
 import Notification from '../components/Notification';
+import { supabase } from '../src/integrations/supabase/client';
 
 const PIX_CONVERSION_RATE = 10; // 1 BRL = 10 Credits
 
@@ -44,23 +45,24 @@ const PixPayment: React.FC = () => {
         setNotification(null);
         
         try {
-            const response = await fetch('https://cpggicxvmgyljvoxlpnu.supabase.co/functions/v1/create-pix-payment', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    amount: transactionAmount,
-                    credits: creditsToReceive,
-                    userId: currentUser.id,
-                }),
-            });
-
-            if (!response.ok) {
-                throw new Error('Erro ao gerar código PIX');
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                throw new Error('Usuário não autenticado');
             }
 
-            const data = await response.json();
+            const response = await supabase.functions.invoke('create-pix-payment', {
+                body: {
+                    amount: transactionAmount,
+                    credits: creditsToReceive,
+                    userId: user.id,
+                }
+            });
+
+            if (response.error) {
+                throw response.error;
+            }
+
+            const data = response.data;
             
             if (data.success) {
                 setPaymentData({
