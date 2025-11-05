@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { SubscriptionPlan } from '../types';
 import { useCredits } from '../hooks/useCredits';
+import { supabase } from '../src/integrations/supabase/client';
 import Notification from './Notification';
 
 interface SubscriptionPlanCardProps {
@@ -22,16 +23,38 @@ const SubscriptionPlanCard: React.FC<SubscriptionPlanCardProps> = ({ plan, isAdm
     const [isLoading, setIsLoading] = useState(false);
     const [notification, setNotification] = useState<string | null>(null);
 
-    const handleSubscribe = () => {
+    const handleSubscribe = async () => {
         if (userSubscription) return;
         setIsLoading(true);
-        // Simulate payment processing
-        setTimeout(() => {
-            subscribeToPlan(plan);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                setNotification('Please login to subscribe');
+                setIsLoading(false);
+                return;
+            }
+
+            const response = await supabase.functions.invoke('create-stripe-checkout', {
+                body: { 
+                    type: 'subscription',
+                    planId: plan.id
+                }
+            });
+
+            if (response.error) {
+                throw response.error;
+            }
+
+            // Redirect to Stripe Checkout
+            if (response.data?.url) {
+                window.location.href = response.data.url;
+            }
+        } catch (error) {
+            console.error("Failed to create Stripe checkout", error);
+            setNotification('Failed to create subscription. Please try again.');
             setIsLoading(false);
-            setNotification(`Successfully subscribed to the ${plan.name} plan!`);
             setTimeout(() => setNotification(null), 3000);
-        }, 1500);
+        }
     };
 
 

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCredits } from '../hooks/useCredits';
-import { createStripeSession } from '../services/mockApi';
+import { supabase } from '../src/integrations/supabase/client';
 import { TransactionType, Screen, SubscriptionPlan, CreditPackage } from '../types';
 import Notification from '../components/Notification';
 import SubscriptionPlanCard from '../components/SubscriptionPlanCard';
@@ -21,20 +21,61 @@ const Store: React.FC<{ navigate: (screen: Screen) => void; }> = ({ navigate }) 
 
     const isDeveloper = userRole === 'developer';
 
+    useEffect(() => {
+        // Check for payment status in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const paymentStatus = urlParams.get('payment');
+        const subscriptionStatus = urlParams.get('subscription');
+
+        if (paymentStatus === 'success') {
+            setNotification('Payment successful! Your credits have been added.');
+            setTimeout(() => setNotification(null), 5000);
+            window.history.replaceState({}, '', '/');
+        } else if (paymentStatus === 'cancelled') {
+            setNotification('Payment cancelled.');
+            setTimeout(() => setNotification(null), 3000);
+            window.history.replaceState({}, '', '/');
+        } else if (subscriptionStatus === 'success') {
+            setNotification('Subscription activated successfully!');
+            setTimeout(() => setNotification(null), 5000);
+            window.history.replaceState({}, '', '/');
+        } else if (subscriptionStatus === 'cancelled') {
+            setNotification('Subscription cancelled.');
+            setTimeout(() => setNotification(null), 3000);
+            window.history.replaceState({}, '', '/');
+        }
+    }, []);
+
     const handlePurchase = async (pkg: typeof creditPackages[0]) => {
         setLoadingPackage(pkg.id);
         try {
-            await createStripeSession(pkg.id);
-            // In a real app, a webhook would handle this. We simulate it here.
-            setTimeout(() => {
-                addCredits(pkg.credits + pkg.bonus, `Purchase of ${pkg.credits} credits`, TransactionType.CREDIT_PURCHASE);
-                setNotification(`${pkg.credits} credit pack purchased successfully!`);
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                setNotification('Please login to purchase credits');
                 setLoadingPackage(null);
-                setTimeout(() => setNotification(null), 3000);
-            }, 2000); // Simulate payment confirmation
+                return;
+            }
+
+            const response = await supabase.functions.invoke('create-stripe-checkout', {
+                body: { 
+                    type: 'credit_package',
+                    packageId: pkg.id
+                }
+            });
+
+            if (response.error) {
+                throw response.error;
+            }
+
+            // Redirect to Stripe Checkout
+            if (response.data?.url) {
+                window.location.href = response.data.url;
+            }
         } catch (error) {
-            console.error("Failed to create Stripe session", error);
+            console.error("Failed to create Stripe checkout", error);
+            setNotification('Failed to create payment session. Please try again.');
             setLoadingPackage(null);
+            setTimeout(() => setNotification(null), 3000);
         }
     };
 
