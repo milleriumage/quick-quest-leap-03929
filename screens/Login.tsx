@@ -9,7 +9,7 @@ const DemoIcon = () => (
 
 
 const Login: React.FC = () => {
-  const { allUsers, contentItems } = useCredits();
+  const { registerOrLoginUser, allUsers, contentItems } = useCredits();
   const { signUp, signIn, resetPassword, user, loading } = useAuth();
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
   const [isDemoOpen, setIsDemoOpen] = useState(false);
@@ -25,13 +25,12 @@ const Login: React.FC = () => {
 
   const showcaseItems = contentItems.slice(0, 4);
 
-  // Auto-redirect quando o usuário estiver autenticado
+  // Auto-login quando o usuário do Supabase estiver autenticado
   useEffect(() => {
     if (user && !loading) {
-      // O CreditsContext já carrega os dados automaticamente via onAuthStateChange
-      console.log('User authenticated, data loading automatically');
+      registerOrLoginUser(user.id, user.email || '', user.email?.split('@')[0]);
     }
-  }, [user, loading]);
+  }, [user, loading, registerOrLoginUser]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,7 +125,7 @@ const Login: React.FC = () => {
   const handleDemoLogin = (userId: string) => {
     const demoUser = allUsers.find(u => u.id === userId);
     if (demoUser) {
-      console.log('Demo login not supported with Supabase auth - please use real credentials');
+      registerOrLoginUser(demoUser.id, demoUser.email, demoUser.username);
     }
     setIsDemoOpen(false);
   };

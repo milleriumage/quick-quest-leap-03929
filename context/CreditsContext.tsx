@@ -136,13 +136,13 @@ export const CreditsContext = createContext<CreditsContextType | undefined>(unde
 // --- PROVIDER COMPONENT ---
 export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Core State
-  const [balance, setBalance] = useState(0);
+  const [balance, setBalance] = useState(100);
   const [earnedBalances, setEarnedBalances] = useState<Record<string, number>>({});
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [creatorTransactions, setCreatorTransactions] = useState<CreatorTransaction[]>([]);
-  const [contentItems, setContentItems] = useState<ContentItem[]>([]);
-  const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>([]);
-  const [creditPackages, setCreditPackages] = useState<CreditPackage[]>([]);
+  const [contentItems, setContentItems] = useState<ContentItem[]>(INITIAL_CONTENT_ITEMS);
+  const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>(INITIAL_SUBSCRIPTION_PLANS);
+  const [creditPackages, setCreditPackages] = useState<CreditPackage[]>(INITIAL_CREDIT_PACKAGES);
   const [subscriptions, setSubscriptions] = useState({} as Record<string, UserSubscription | null>);
   const [unlockedContentIds, setUnlockedContentIds] = useState<string[]>([]);
   
@@ -155,7 +155,7 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
   // New User, Auth & Social State
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>(INITIAL_USERS);
   const [activeTagFilter, setTagFilter] = useState<string | null>(null);
   const [viewingCreatorId, setViewCreatorId] = useState<string | null>(null);
 
@@ -164,302 +164,10 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [sidebarVisibility, setSidebarVisibility] = useState<SidebarVisibility>(initialSidebarVisibility);
   const [navbarVisibility, setNavbarVisibility] = useState<NavbarVisibility>(initialNavbarVisibility);
-  const [isInitializing, setIsInitializing] = useState(true);
 
-  // Load admin settings from Supabase
   useEffect(() => {
-    const loadAdminSettings = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('admin_settings')
-          .select('*')
-          .limit(1)
-          .maybeSingle();
-
-        if (error) throw error;
-
-        if (data) {
-          if (data.dev_settings) {
-            setDevSettings(data.dev_settings as unknown as DevSettings);
-          }
-          if (data.sidebar_visibility) {
-            setSidebarVisibility(data.sidebar_visibility as unknown as SidebarVisibility);
-          }
-          if (data.navbar_visibility) {
-            setNavbarVisibility(data.navbar_visibility as unknown as NavbarVisibility);
-          }
-        }
-      } catch (error) {
-        console.error('Error loading admin settings:', error);
-      }
-    };
-
-    loadAdminSettings();
+      setWithdrawalTimeEnd(Date.now() + initialDevSettings.withdrawalCooldownHours * 3600 * 1000);
   }, []);
-
-  // Load subscription plans and credit packages
-  useEffect(() => {
-    const loadPlansAndPackages = async () => {
-      try {
-        const [plansResult, packagesResult] = await Promise.all([
-          supabase.from('subscription_plans').select('*'),
-          supabase.from('credit_packages').select('*')
-        ]);
-
-        if (plansResult.data) {
-          setSubscriptionPlans(plansResult.data.map(p => ({
-            id: p.id,
-            name: p.name,
-            price: Number(p.price),
-            credits: p.credits,
-            features: p.features,
-            currency: p.currency,
-            stripeProductId: p.stripe_product_id || undefined
-          })));
-        }
-
-        if (packagesResult.data) {
-          setCreditPackages(packagesResult.data.map(pkg => ({
-            id: pkg.id,
-            credits: pkg.credits,
-            bonus: pkg.bonus,
-            price: Number(pkg.price),
-            bestValue: pkg.best_value,
-            stripeProductId: pkg.stripe_product_id
-          })));
-        }
-      } catch (error) {
-        console.error('Error loading plans and packages:', error);
-      }
-    };
-
-    loadPlansAndPackages();
-  }, []);
-
-  // Monitor auth state and load user data
-  useEffect(() => {
-    const initializeAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.user) {
-          await loadUserData(session.user.id);
-        }
-        
-        setIsInitializing(false);
-      } catch (error) {
-        console.error('Error initializing auth:', error);
-        setIsInitializing(false);
-      }
-    };
-
-    initializeAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event);
-      
-      if (event === 'SIGNED_IN' && session?.user) {
-        setIsInitializing(true);
-        try {
-          await loadUserData(session.user.id);
-        } finally {
-          setIsInitializing(false);
-        }
-      } else if (event === 'SIGNED_OUT') {
-        logout();
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  const loadUserData = async (userId: string) => {
-    try {
-      console.log('Loading user data for:', userId);
-      
-      // Load user profile - CRITICAL DATA
-      const profileQuery = supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      // Add 10 second timeout
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Profile load timeout')), 10000)
-      );
-
-      const { data: profile, error: profileError } = await Promise.race([
-        profileQuery,
-        timeoutPromise
-      ]) as any;
-
-      if (profileError) {
-        console.error('Profile error:', profileError);
-        throw profileError;
-      }
-
-      if (!profile) {
-        console.error('No profile found for user:', userId);
-        throw new Error('Profile not found');
-      }
-
-      console.log('Profile loaded:', profile);
-
-      // Set basic user data immediately
-      const user: User = {
-        id: profile.id,
-        username: profile.username,
-        email: '',
-        profilePictureUrl: profile.profile_picture_url || '',
-        role: 'user',
-        followers: [],
-        following: [],
-        vitrineSlug: profile.vitrine_slug || ''
-      };
-
-      setCurrentUser(user);
-      setIsLoggedIn(true);
-      setBalance(profile.credits_balance || 0);
-      setEarnedBalances(prev => ({ ...prev, [userId]: profile.earned_balance || 0 }));
-      setIsInitializing(false);
-
-      // Load additional data in background (non-blocking)
-      setTimeout(async () => {
-        try {
-          // Load followers and following
-          const [followersResult, followingResult] = await Promise.all([
-            supabase.from('followers').select('follower_id').eq('following_id', userId),
-            supabase.from('followers').select('following_id').eq('follower_id', userId)
-          ]);
-
-          if (followersResult.data || followingResult.data) {
-            setCurrentUser(prev => prev ? {
-              ...prev,
-              followers: followersResult.data?.map(f => f.follower_id) || [],
-              following: followingResult.data?.map(f => f.following_id) || []
-            } : null);
-          }
-
-          // Load user transactions
-          const { data: transactionsData } = await supabase
-            .from('transactions')
-            .select('*')
-            .eq('user_id', userId)
-            .order('timestamp', { ascending: false })
-            .limit(100);
-
-          if (transactionsData) {
-            setTransactions(transactionsData.map(t => ({
-              id: t.id,
-              type: t.type as TransactionType,
-              amount: t.amount,
-              description: t.description || '',
-              timestamp: t.timestamp
-            })));
-          }
-
-          // Load unlocked content
-          const { data: unlockedData } = await supabase
-            .from('unlocked_content')
-            .select('content_item_id')
-            .eq('user_id', userId);
-
-          if (unlockedData) {
-            setUnlockedContentIds(unlockedData.map(u => u.content_item_id));
-          }
-
-          // Load user subscription
-          const { data: subData } = await supabase
-            .from('user_subscriptions')
-            .select('*, subscription_plans(*)')
-            .eq('user_id', userId)
-            .eq('status', 'active')
-            .maybeSingle();
-
-          if (subData && subData.subscription_plans) {
-            const plan = subData.subscription_plans;
-            setSubscriptions(prev => ({
-              ...prev,
-              [userId]: {
-                id: plan.id,
-                name: plan.name,
-                price: Number(plan.price),
-                credits: plan.credits,
-                features: plan.features,
-                currency: plan.currency,
-                renewsOn: subData.renews_on,
-                paymentMethod: 'Credit Card'
-              }
-            }));
-          }
-
-          console.log('Additional user data loaded');
-        } catch (error) {
-          console.error('Error loading additional user data:', error);
-        }
-      }, 0);
-
-      // Load all content items in background
-      setTimeout(() => {
-        loadContentItems();
-      }, 100);
-
-      console.log('User data loaded successfully');
-
-    } catch (error) {
-      console.error('Error loading user data:', error);
-      setIsInitializing(false);
-      throw error;
-    }
-  };
-
-  const loadContentItems = async () => {
-    try {
-      const { data: items, error } = await supabase
-        .from('content_items')
-        .select('*, media(*), reactions(*), likes(*), shares(*)')
-        .eq('is_hidden', false)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      if (items) {
-        const formattedItems: ContentItem[] = items.map(item => ({
-          id: item.id,
-          title: item.title,
-          creatorId: item.creator_id,
-          price: item.price,
-          tags: item.tags || [],
-          imageUrl: '', // Will be set from media
-          blurLevel: item.blur_level,
-          createdAt: item.created_at,
-          likes: item.likes?.length || 0,
-          shares: item.shares?.length || 0,
-          likedBy: item.likes?.map((l: any) => l.user_id) || [],
-          sharedBy: item.shares?.map((s: any) => s.user_id) || [],
-          userReactions: item.reactions?.reduce((acc: Record<string, string>, r: any) => {
-            acc[r.user_id] = r.emoji;
-            return acc;
-          }, {}),
-          mediaCount: {
-            images: item.media?.filter((m: any) => m.media_type === 'image').length || 0,
-            videos: item.media?.filter((m: any) => m.media_type === 'video').length || 0
-          }
-        }));
-
-        setContentItems(formattedItems);
-      }
-    } catch (error) {
-      console.error('Error loading content items:', error);
-    }
-  };
-
-  useEffect(() => {
-      setWithdrawalTimeEnd(Date.now() + devSettings.withdrawalCooldownHours * 3600 * 1000);
-  }, [devSettings.withdrawalCooldownHours]);
   
   const userSubscription = useMemo(() => {
       if (!currentUser) return null;
@@ -473,55 +181,56 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
 
 
   const registerOrLoginUser = useCallback((userId: string, email: string, username?: string) => {
-    // This is now handled by Supabase auth - loadUserData is called automatically
-    console.warn('registerOrLoginUser is deprecated - use Supabase auth directly');
-  }, []);
+    let user = allUsers.find(u => u.id === userId);
+    
+    if (!user) {
+      // Criar novo usuário se não existir
+      user = {
+        id: userId,
+        username: username || email.split('@')[0],
+        email: email,
+        profilePictureUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+        role: 'user',
+        followers: [],
+        following: [],
+        vitrineSlug: userId,
+      };
+      setAllUsers(prev => [...prev, user!]);
+    }
+    
+    setCurrentUser(user);
+    setIsLoggedIn(true);
+    setCurrentScreen('home');
+    // For simulation, reset balances on login to reflect a new session
+    setBalance(500); // Give user enough credits to buy content
+    setEarnedBalances({}); // Reset all earnings
+    setUnlockedContentIds([]);
+  }, [allUsers]);
 
   const login = useCallback((userId: string) => {
-    // This is now handled by Supabase auth - loadUserData is called automatically
-    console.warn('login is deprecated - use Supabase auth directly');
-  }, []);
+    const user = allUsers.find(u => u.id === userId);
+    if (user) {
+      setCurrentUser(user);
+      setIsLoggedIn(true);
+      setCurrentScreen('home');
+      // For simulation, reset balances on login to reflect a new session
+      setBalance(500); // Give user enough credits to buy content
+      setEarnedBalances({}); // Reset all earnings
+      setUnlockedContentIds([]);
+    }
+  }, [allUsers]);
 
-  const logout = useCallback(async () => {
+  const logout = useCallback(() => {
     setCurrentUser(null);
     setIsLoggedIn(false);
-    setViewCreatorId(null);
-    setBalance(0);
-    setTransactions([]);
-    setUnlockedContentIds([]);
-    setEarnedBalances({});
-    
-    // Sign out from Supabase
-    try {
-      await supabase.auth.signOut();
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
+    setViewCreatorId(null); 
   }, []);
   
-  const updateUserProfile = useCallback(async (updatedProfile: Partial<User>) => {
-    if (!currentUser) return;
-    
-    const updatedUser = { ...currentUser, ...updatedProfile };
-    setCurrentUser(updatedUser);
-    setAllUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
-
-    // Save to Supabase
-    try {
-      const updateData: any = {};
-      if (updatedProfile.username) updateData.username = updatedProfile.username;
-      if (updatedProfile.profilePictureUrl) updateData.profile_picture_url = updatedProfile.profilePictureUrl;
-      if (updatedProfile.vitrineSlug) updateData.vitrine_slug = updatedProfile.vitrineSlug;
-
-      if (Object.keys(updateData).length > 0) {
-        await supabase
-          .from('profiles')
-          .update(updateData)
-          .eq('id', currentUser.id);
-      }
-    } catch (error) {
-      console.error('Error updating profile:', error);
-    }
+  const updateUserProfile = useCallback((updatedProfile: Partial<User>) => {
+      if (!currentUser) return;
+      const updatedUser = { ...currentUser, ...updatedProfile };
+      setCurrentUser(updatedUser);
+      setAllUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
   }, [currentUser]);
 
   const followUser = useCallback(async (userIdToFollow: string) => {
@@ -596,54 +305,23 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
     alert(`Link copied to clipboard!\n${url}`);
   }, [currentUser]);
 
-  const addTransaction = async (trans: Omit<Transaction, 'id' | 'timestamp'>) => {
-    if (!currentUser) return;
-    
-    const newTransaction = { 
-      id: Date.now().toString(), 
-      timestamp: new Date().toISOString(), 
-      ...trans 
-    };
-    
-    setTransactions(prev => [newTransaction, ...prev]);
-
-    // Save to Supabase
-    try {
-      await supabase.from('transactions').insert({
-        user_id: currentUser.id,
-        type: trans.type,
-        amount: trans.amount,
-        description: trans.description
-      });
-    } catch (error) {
-      console.error('Error saving transaction:', error);
-    }
+  const addTransaction = (trans: Omit<Transaction, 'id' | 'timestamp'>) => {
+     setTransactions(prev => [
+      { id: Date.now().toString(), timestamp: new Date().toISOString(), ...trans },
+      ...prev,
+    ]);
   };
 
-  const addCredits = useCallback(async (amount: number, description: string, type: TransactionType) => {
-    if (!currentUser) return;
-    
-    const newBalance = balance + amount;
-    setBalance(newBalance);
-    await addTransaction({ type, amount, description });
+  const addCredits = useCallback((amount: number, description: string, type: TransactionType) => {
+    setBalance(prev => prev + amount);
+    addTransaction({ type, amount, description });
+  }, []);
 
-    // Update balance in Supabase
-    try {
-      await supabase
-        .from('profiles')
-        .update({ credits_balance: newBalance })
-        .eq('id', currentUser.id);
-    } catch (error) {
-      console.error('Error updating balance:', error);
-    }
-  }, [balance, currentUser]);
-
-  const processPurchase = useCallback(async (item: ContentItem) => {
+  const processPurchase = useCallback((item: ContentItem) => {
     if (!currentUser) return false;
     if (balance >= item.price) {
-      const newBalance = balance - item.price;
-      setBalance(newBalance);
-      await addTransaction({ type: TransactionType.PURCHASE, amount: -item.price, description: `Purchase of ${item.title}` });
+      setBalance(prev => prev - item.price);
+      addTransaction({ type: TransactionType.PURCHASE, amount: -item.price, description: `Purchase of ${item.title}` });
 
       const earnings = item.price * (1 - devSettings.platformCommission);
       
@@ -667,13 +345,6 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
       ]);
       
       setUnlockedContentIds(prev => [...prev, item.id]);
-
-      // Save to Supabase using purchase_content function
-      try {
-        await supabase.rpc('purchase_content', { item_id: item.id });
-      } catch (error) {
-        console.error('Error processing purchase:', error);
-      }
 
       return true;
     }
@@ -861,28 +532,9 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
     }));
   }, [currentUser]);
 
-  const updateDevSettings = useCallback(async (settings: Partial<DevSettings>) => {
-    const newSettings = { ...devSettings, ...settings };
-    setDevSettings(newSettings);
-
-    // Save to Supabase
-    try {
-      const { data: adminSettings } = await supabase
-        .from('admin_settings')
-        .select('id')
-        .limit(1)
-        .maybeSingle();
-
-      if (adminSettings) {
-        await supabase
-          .from('admin_settings')
-          .update({ dev_settings: newSettings })
-          .eq('id', adminSettings.id);
-      }
-    } catch (error) {
-      console.error('Error updating dev settings:', error);
-    }
-  }, [devSettings]);
+  const updateDevSettings = useCallback((settings: Partial<DevSettings>) => {
+    setDevSettings(prev => ({...prev, ...settings}));
+  }, []);
 
   const addCreditsToUser = useCallback((userId: string, amount: number) => {
       // This is a simulation. In a real app, you'd target a specific user's balance.
@@ -925,51 +577,13 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
       return timeouts[userId];
   }, [timeouts]);
 
-  const updateSidebarVisibility = useCallback(async (updates: Partial<SidebarVisibility>) => {
-    const newVisibility = { ...sidebarVisibility, ...updates };
-    setSidebarVisibility(newVisibility);
+  const updateSidebarVisibility = useCallback((updates: Partial<SidebarVisibility>) => {
+    setSidebarVisibility(prev => ({ ...prev, ...updates }));
+  }, []);
 
-    // Save to Supabase
-    try {
-      const { data: settings } = await supabase
-        .from('admin_settings')
-        .select('id')
-        .limit(1)
-        .maybeSingle();
-
-      if (settings) {
-        await supabase
-          .from('admin_settings')
-          .update({ sidebar_visibility: newVisibility })
-          .eq('id', settings.id);
-      }
-    } catch (error) {
-      console.error('Error updating sidebar visibility:', error);
-    }
-  }, [sidebarVisibility]);
-
-  const updateNavbarVisibility = useCallback(async (updates: Partial<NavbarVisibility>) => {
-    const newVisibility = { ...navbarVisibility, ...updates };
-    setNavbarVisibility(newVisibility);
-
-    // Save to Supabase
-    try {
-      const { data: settings } = await supabase
-        .from('admin_settings')
-        .select('id')
-        .limit(1)
-        .maybeSingle();
-
-      if (settings) {
-        await supabase
-          .from('admin_settings')
-          .update({ navbar_visibility: newVisibility })
-          .eq('id', settings.id);
-      }
-    } catch (error) {
-      console.error('Error updating navbar visibility:', error);
-    }
-  }, [navbarVisibility]);
+  const updateNavbarVisibility = useCallback((updates: Partial<NavbarVisibility>) => {
+    setNavbarVisibility(prev => ({ ...prev, ...updates }));
+  }, []);
   
   const contextValue = useMemo(() => ({
     balance,

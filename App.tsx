@@ -104,13 +104,12 @@ const AppContent: React.FC = () => {
     }
   }, [theme]);
 
-  // Show login when not authenticated and not viewing a creator
-  if (!isLoggedIn && !viewingCreatorId) {
-    return <Login />;
+  // Allow guest view if a creator profile is being shared/viewed
+  if (isLoggedIn || viewingCreatorId) {
+    return <MainLayout />;
   }
 
-  // Show main layout when authenticated or viewing creator
-  return <MainLayout />;
+  return <Login />;
 };
 
 const App: React.FC = () => {
