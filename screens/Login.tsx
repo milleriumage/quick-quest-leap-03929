@@ -1,13 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useCredits } from '../hooks/useCredits';
 import { useAuth } from '../hooks/useAuth';
 import OnlyFansCard from '../components/OnlyFansCard';
 
+const DemoIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 mr-1"><path d="M5.52 19c.64-2.2 1.84-3 3.22-3h6.52c1.38 0 2.58.8 3.22 3"/><circle cx="12" cy="10" r="3"/><circle cx="12" cy="12" r="10"/></svg>
+);
+
 
 const Login: React.FC = () => {
-  const { registerOrLoginUser, contentItems } = useCredits();
+  const { registerOrLoginUser, allUsers, contentItems } = useCredits();
   const { signUp, signIn, resetPassword, user, loading } = useAuth();
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
+  const [isDemoOpen, setIsDemoOpen] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [showForgotEmail, setShowForgotEmail] = useState(false);
   const [email, setEmail] = useState('');
@@ -16,6 +21,7 @@ const Login: React.FC = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const demoRef = useRef<HTMLDivElement>(null);
 
   const showcaseItems = contentItems.slice(0, 4);
 
@@ -25,6 +31,25 @@ const Login: React.FC = () => {
       registerOrLoginUser(user.id, user.email || '', user.email?.split('@')[0]);
     }
   }, [user, loading, registerOrLoginUser]);
+
+  const handleDemoLogin = (userId: string) => {
+    const demoUser = allUsers.find(u => u.id === userId);
+    if (demoUser) {
+      registerOrLoginUser(demoUser.id, demoUser.email, demoUser.username);
+    }
+    setIsDemoOpen(false);
+  };
+  
+  // Close demo dropdown if clicked outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (demoRef.current && !demoRef.current.contains(event.target as Node)) {
+        setIsDemoOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [demoRef]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,7 +144,38 @@ const Login: React.FC = () => {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-900 p-4">
-        <div className="w-full max-w-md">
+        <div className="w-full max-w-md relative">
+            <div className="absolute -top-4 right-0 z-10" ref={demoRef}>
+                <button 
+                    onClick={() => setIsDemoOpen(!isDemoOpen)}
+                    className="flex items-center px-4 py-2 bg-neutral-700 text-white rounded-lg hover:bg-neutral-600 transition-colors shadow-lg"
+                    aria-label="Access Demo Accounts"
+                >
+                    <DemoIcon />
+                    <span className="text-sm font-medium">Modo Demo</span>
+                </button>
+                {isDemoOpen && (
+                    <div className="absolute right-0 mt-2 w-64 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl animate-fade-in-down">
+                        <div className="p-2">
+                             <p className="text-xs text-neutral-400 px-2 pb-1">Selecione um perfil demo:</p>
+                            {allUsers.map(user => (
+                                <button
+                                    key={user.id}
+                                    onClick={() => handleDemoLogin(user.id)}
+                                    className="w-full flex items-center p-2 text-left rounded-md hover:bg-neutral-700 transition-colors"
+                                >
+                                    <img src={user.profilePictureUrl} alt={user.username} className="w-9 h-9 rounded-full mr-3" />
+                                    <div>
+                                        <p className="font-semibold text-sm text-white">{user.username}</p>
+                                        <p className="text-xs text-neutral-400 capitalize">{user.role}</p>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+
             <div className="p-8 space-y-6 bg-neutral-800 rounded-xl shadow-lg">
                 <div className="text-center">
                     <h1 className="text-4xl font-bold text-white tracking-wider">
