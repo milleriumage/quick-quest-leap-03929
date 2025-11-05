@@ -36,9 +36,9 @@ const initialSidebarVisibility: SidebarVisibility = {
   themeGenerator: true,
   manageSubscription: true,
   earnCredits: true,
-  createContent: false,
-  myCreations: false,
-  creatorPayouts: false,
+  createContent: true,
+  myCreations: true,
+  creatorPayouts: true,
 };
 
 const initialNavbarVisibility: NavbarVisibility = {
