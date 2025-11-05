@@ -81,6 +81,7 @@ const Sidebar: React.FC = () => {
   const { signOut } = useAuth();
   const [isGeminiModalOpen, setIsGeminiModalOpen] = useState(false);
   const [geminiMode, setGeminiMode] = useState<'improve' | 'analyze'>('improve');
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const openGeminiModal = (mode: 'improve' | 'analyze') => {
     setGeminiMode(mode);
@@ -88,8 +89,16 @@ const Sidebar: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    await signOut(); // Logout do Supabase
-    logout(); // Logout do contexto local
+    if (isLoggingOut) return;
+    
+    try {
+      setIsLoggingOut(true);
+      await signOut();
+      logout();
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+      setIsLoggingOut(false);
+    }
   };
 
   const navItems: NavConfig[] = [
@@ -231,9 +240,25 @@ const Sidebar: React.FC = () => {
                 Share Vitrine
             </button>
         )}
-        <button onClick={handleLogout} className="w-full flex items-center justify-center p-3 rounded-lg bg-red-900/50 text-red-300 hover:bg-red-800/50 hover:text-white">
-            <LogoutIcon />
-            <span className="ml-2 font-semibold">Logout</span>
+        <button 
+          onClick={handleLogout} 
+          disabled={isLoggingOut}
+          className="w-full flex items-center justify-center p-3 rounded-lg bg-red-900/50 text-red-300 hover:bg-red-800/50 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+        >
+            {isLoggingOut ? (
+              <>
+                <svg className="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span className="font-semibold">Saindo...</span>
+              </>
+            ) : (
+              <>
+                <LogoutIcon />
+                <span className="ml-2 font-semibold">Logout</span>
+              </>
+            )}
         </button>
       </div>
     </aside>
