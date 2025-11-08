@@ -32,8 +32,8 @@ export interface NavbarVisibility {
 
 const initialSidebarVisibility: SidebarVisibility = {
   store: true,
-  outfitGenerator: true,
-  themeGenerator: true,
+  outfitGenerator: false,
+  themeGenerator: false,
   manageSubscription: true,
   earnCredits: true,
   createContent: true,
@@ -180,7 +180,7 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
   }, [currentUser, earnedBalances]);
 
 
-  const registerOrLoginUser = useCallback((userId: string, email: string, username?: string) => {
+  const registerOrLoginUser = useCallback(async (userId: string, email: string, username?: string) => {
     let user = allUsers.find(u => u.id === userId);
     
     if (!user) {
@@ -201,22 +201,46 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
     setCurrentUser(user);
     setIsLoggedIn(true);
     setCurrentScreen('home');
-    // For simulation, reset balances on login to reflect a new session
-    setBalance(500); // Give user enough credits to buy content
-    setEarnedBalances({}); // Reset all earnings
-    setUnlockedContentIds([]);
+    
+    // Load balance from Supabase
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('credits_balance, earned_balance')
+        .eq('id', userId)
+        .single();
+      
+      if (profile) {
+        setBalance(profile.credits_balance);
+        setEarnedBalances(prev => ({ ...prev, [userId]: profile.earned_balance }));
+      }
+    } catch (error) {
+      console.error('Error loading credits from Supabase:', error);
+    }
   }, [allUsers]);
 
-  const login = useCallback((userId: string) => {
+  const login = useCallback(async (userId: string) => {
     const user = allUsers.find(u => u.id === userId);
     if (user) {
       setCurrentUser(user);
       setIsLoggedIn(true);
       setCurrentScreen('home');
-      // For simulation, reset balances on login to reflect a new session
-      setBalance(500); // Give user enough credits to buy content
-      setEarnedBalances({}); // Reset all earnings
-      setUnlockedContentIds([]);
+      
+      // Load balance from Supabase
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('credits_balance, earned_balance')
+          .eq('id', userId)
+          .single();
+        
+        if (profile) {
+          setBalance(profile.credits_balance);
+          setEarnedBalances(prev => ({ ...prev, [userId]: profile.earned_balance }));
+        }
+      } catch (error) {
+        console.error('Error loading credits from Supabase:', error);
+      }
     }
   }, [allUsers]);
 
@@ -312,15 +336,42 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
     ]);
   };
 
-  const addCredits = useCallback((amount: number, description: string, type: TransactionType) => {
-    setBalance(prev => prev + amount);
+  const addCredits = useCallback(async (amount: number, description: string, type: TransactionType) => {
+    setBalance(prev => {
+      const newBalance = prev + amount;
+      
+      // Save to Supabase
+      if (currentUser) {
+        supabase
+          .from('profiles')
+          .update({ credits_balance: newBalance })
+          .eq('id', currentUser.id)
+          .then(({ error }) => {
+            if (error) console.error('Error updating credits in Supabase:', error);
+          });
+      }
+      
+      return newBalance;
+    });
     addTransaction({ type, amount, description });
-  }, []);
+  }, [currentUser]);
 
-  const processPurchase = useCallback((item: ContentItem) => {
+  const processPurchase = useCallback(async (item: ContentItem) => {
     if (!currentUser) return false;
     if (balance >= item.price) {
-      setBalance(prev => prev - item.price);
+      const newBalance = balance - item.price;
+      setBalance(newBalance);
+      
+      // Save buyer's balance to Supabase
+      try {
+        await supabase
+          .from('profiles')
+          .update({ credits_balance: newBalance })
+          .eq('id', currentUser.id);
+      } catch (error) {
+        console.error('Error updating buyer balance in Supabase:', error);
+      }
+      
       addTransaction({ type: TransactionType.PURCHASE, amount: -item.price, description: `Purchase of ${item.title}` });
 
       const earnings = item.price * (1 - devSettings.platformCommission);
@@ -329,6 +380,24 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
           ...prev,
           [item.creatorId]: (prev[item.creatorId] || 0) + earnings
       }));
+
+      // Save creator's earnings to Supabase
+      try {
+        const { data: creatorProfile } = await supabase
+          .from('profiles')
+          .select('earned_balance')
+          .eq('id', item.creatorId)
+          .single();
+        
+        if (creatorProfile) {
+          await supabase
+            .from('profiles')
+            .update({ earned_balance: creatorProfile.earned_balance + earnings })
+            .eq('id', item.creatorId);
+        }
+      } catch (error) {
+        console.error('Error updating creator earnings in Supabase:', error);
+      }
 
       setCreatorTransactions(prev => [
           {

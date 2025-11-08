@@ -41,7 +41,6 @@ const DesignStudioIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24
 const UserPlanIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
 const ShowcaseIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>;
 const ThemeGeneratorIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 0 2l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1 0-2l.15-.08a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>;
-const DemoIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5.52 19c.64-2.2 1.84-3 3.22-3h6.52c1.38 0 2.58.8 3.22 3"/><circle cx="12" cy="10" r="3"/><circle cx="12" cy="12" r="10"/></svg>;
 
 
 interface NavItemProps {
@@ -145,30 +144,7 @@ const Sidebar: React.FC = () => {
       <div className="flex-1 overflow-y-auto">
         <nav className="p-4">
             <ul className="space-y-2">
-            {navItems.slice(0, 2)
-              .filter(i => i.roles.includes(userRole))
-              .filter(i => !i.visibility || sidebarVisibility[i.visibility])
-              .map(item => (
-                <NavItem
-                key={item.screen}
-                screen={item.screen}
-                label={item.label}
-                icon={item.icon}
-                isActive={currentScreen === item.screen}
-                onClick={() => setCurrentScreen(item.screen)}
-                />
-            ))}
-            {/* Demo Mode button - special handling to logout */}
-            <li className="px-2">
-              <button
-                onClick={handleLogout}
-                className="flex items-center w-full p-3 rounded-lg transition-colors duration-200 text-neutral-300 hover:bg-neutral-700 hover:text-white"
-              >
-                <span className="w-6 h-6"><DemoIcon /></span>
-                <span className="ml-4 font-semibold">Demo Mode</span>
-              </button>
-            </li>
-            {navItems.slice(2)
+            {navItems
               .filter(i => i.roles.includes(userRole))
               .filter(i => !i.visibility || sidebarVisibility[i.visibility])
               .map(item => (
