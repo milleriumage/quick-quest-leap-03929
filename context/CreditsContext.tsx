@@ -23,6 +23,7 @@ export interface SidebarVisibility {
   createContent: boolean;
   myCreations: boolean;
   creatorPayouts: boolean;
+  myPurchases: boolean;
 }
 
 export interface NavbarVisibility {
@@ -39,6 +40,7 @@ const initialSidebarVisibility: SidebarVisibility = {
   createContent: true,
   myCreations: true,
   creatorPayouts: true,
+  myPurchases: true,
 };
 
 const initialNavbarVisibility: NavbarVisibility = {
@@ -202,7 +204,7 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
     setIsLoggedIn(true);
     setCurrentScreen('home');
     
-    // Load balance from Supabase
+    // Load balance and unlocked content from Supabase
     try {
       const { data: profile } = await supabase
         .from('profiles')
@@ -214,8 +216,19 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
         setBalance(profile.credits_balance);
         setEarnedBalances(prev => ({ ...prev, [userId]: profile.earned_balance }));
       }
+
+      // Load unlocked content
+      const { data: unlockedData } = await supabase
+        .from('unlocked_content')
+        .select('content_item_id')
+        .eq('user_id', userId);
+      
+      if (unlockedData) {
+        const ids = unlockedData.map(item => item.content_item_id);
+        setUnlockedContentIds(ids);
+      }
     } catch (error) {
-      console.error('Error loading credits from Supabase:', error);
+      console.error('Error loading user data from Supabase:', error);
     }
   }, [allUsers]);
 
@@ -226,7 +239,7 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
       setIsLoggedIn(true);
       setCurrentScreen('home');
       
-      // Load balance from Supabase
+      // Load balance and unlocked content from Supabase
       try {
         const { data: profile } = await supabase
           .from('profiles')
@@ -238,8 +251,19 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
           setBalance(profile.credits_balance);
           setEarnedBalances(prev => ({ ...prev, [userId]: profile.earned_balance }));
         }
+
+        // Load unlocked content
+        const { data: unlockedData } = await supabase
+          .from('unlocked_content')
+          .select('content_item_id')
+          .eq('user_id', userId);
+        
+        if (unlockedData) {
+          const ids = unlockedData.map(item => item.content_item_id);
+          setUnlockedContentIds(ids);
+        }
       } catch (error) {
-        console.error('Error loading credits from Supabase:', error);
+        console.error('Error loading user data from Supabase:', error);
       }
     }
   }, [allUsers]);
@@ -359,63 +383,56 @@ export const CreditsProvider: React.FC<{ children: ReactNode }> = ({ children })
   const processPurchase = useCallback(async (item: ContentItem) => {
     if (!currentUser) return false;
     if (balance >= item.price) {
-      const newBalance = balance - item.price;
-      setBalance(newBalance);
-      
-      // Save buyer's balance to Supabase
       try {
-        await supabase
-          .from('profiles')
-          .update({ credits_balance: newBalance })
-          .eq('id', currentUser.id);
-      } catch (error) {
-        console.error('Error updating buyer balance in Supabase:', error);
-      }
-      
-      addTransaction({ type: TransactionType.PURCHASE, amount: -item.price, description: `Purchase of ${item.title}` });
+        // Use Supabase function to handle purchase
+        const { data, error } = await supabase.rpc('purchase_content', {
+          item_id: item.id
+        });
 
-      const earnings = item.price * (1 - devSettings.platformCommission);
-      
-      setEarnedBalances(prev => ({
-          ...prev,
-          [item.creatorId]: (prev[item.creatorId] || 0) + earnings
-      }));
-
-      // Save creator's earnings to Supabase
-      try {
-        const { data: creatorProfile } = await supabase
-          .from('profiles')
-          .select('earned_balance')
-          .eq('id', item.creatorId)
-          .single();
-        
-        if (creatorProfile) {
-          await supabase
-            .from('profiles')
-            .update({ earned_balance: creatorProfile.earned_balance + earnings })
-            .eq('id', item.creatorId);
+        if (error) {
+          console.error('Error purchasing content:', error);
+          return false;
         }
+
+        const result = data as { success: boolean; message: string };
+        
+        if (result.success) {
+          // Update local state
+          const newBalance = balance - item.price;
+          setBalance(newBalance);
+          
+          addTransaction({ type: TransactionType.PURCHASE, amount: -item.price, description: `Purchase of ${item.title}` });
+
+          const earnings = item.price * (1 - devSettings.platformCommission);
+          
+          setEarnedBalances(prev => ({
+              ...prev,
+              [item.creatorId]: (prev[item.creatorId] || 0) + earnings
+          }));
+
+          setCreatorTransactions(prev => [
+              {
+                  id: `ctx_${Date.now()}`,
+                  cardId: item.id,
+                  cardTitle: item.title,
+                  buyerId: currentUser.id,
+                  amountReceived: earnings,
+                  originalPrice: item.price,
+                  timestamp: new Date().toISOString(),
+                  mediaCount: item.mediaCount,
+              },
+              ...prev
+          ]);
+          
+          setUnlockedContentIds(prev => [...prev, item.id]);
+
+          return true;
+        }
+        return false;
       } catch (error) {
-        console.error('Error updating creator earnings in Supabase:', error);
+        console.error('Error in processPurchase:', error);
+        return false;
       }
-
-      setCreatorTransactions(prev => [
-          {
-              id: `ctx_${Date.now()}`,
-              cardId: item.id,
-              cardTitle: item.title,
-              buyerId: currentUser.id,
-              amountReceived: earnings,
-              originalPrice: item.price,
-              timestamp: new Date().toISOString(),
-              mediaCount: item.mediaCount,
-          },
-          ...prev
-      ]);
-      
-      setUnlockedContentIds(prev => [...prev, item.id]);
-
-      return true;
     }
     return false;
   }, [balance, devSettings.platformCommission, currentUser]);

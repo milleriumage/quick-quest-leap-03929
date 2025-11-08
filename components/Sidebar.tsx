@@ -95,6 +95,7 @@ const Sidebar: React.FC = () => {
   const navItems: NavConfig[] = [
     { screen: 'home', label: 'Home', icon: <HomeIcon />, roles: ['user', 'creator', 'developer'] },
     { screen: 'store', label: 'Store', icon: <StoreIcon />, roles: ['user', 'creator', 'developer'], visibility: 'store' },
+    { screen: 'my-purchases', label: 'Minhas Compras', icon: <StoreIcon />, roles: ['user', 'creator', 'developer'], visibility: 'myPurchases' },
     { screen: 'outfit-generator', label: 'Outfit Studio', icon: <OutfitIcon />, roles: ['user', 'creator', 'developer'], visibility: 'outfitGenerator' },
     { screen: 'theme-generator', label: 'Theme Generator', icon: <ThemeGeneratorIcon />, roles: ['user', 'creator', 'developer'], visibility: 'themeGenerator' },
     { screen: 'account', label: 'My Account', icon: <AccountIcon />, roles: ['user', 'creator', 'developer'] },

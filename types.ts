@@ -1,5 +1,5 @@
 
-export type Screen = 'home' | 'store' | 'manage-subscription' | 'history' | 'rewards' | 'create-content' | 'creator-payouts' | 'developer-panel' | 'my-creations' | 'account' | 'view-creator' | 'ux-kit' | 'design-studio' | 'pix-payment' | 'livepix-payment' | 'user-plan-management' | 'showcase-management' | 'outfit-generator' | 'theme-generator';
+export type Screen = 'home' | 'store' | 'my-purchases' | 'manage-subscription' | 'history' | 'rewards' | 'create-content' | 'creator-payouts' | 'developer-panel' | 'my-creations' | 'account' | 'view-creator' | 'ux-kit' | 'design-studio' | 'pix-payment' | 'livepix-payment' | 'user-plan-management' | 'showcase-management' | 'outfit-generator' | 'theme-generator';
 
 export type UserRole = 'user' | 'creator' | 'developer';
 

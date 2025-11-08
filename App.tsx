@@ -14,6 +14,7 @@ import CreatorPayouts from './screens/CreatorPayouts';
 import DeveloperPanel from './screens/DeveloperPanel';
 import TimeoutScreen from './components/TimeoutScreen';
 import MyCreations from './screens/MyCreations';
+import MyPurchases from './screens/MyPurchases';
 import Login from './screens/Login';
 import Account from './screens/Account';
 import UXKit from './screens/UXKit';
@@ -42,6 +43,8 @@ const MainLayout: React.FC = () => {
         return <Home navigate={setCurrentScreen} />;
       case 'store':
         return <Store navigate={setCurrentScreen} />;
+      case 'my-purchases':
+        return <MyPurchases />;
       case 'manage-subscription':
         return <ManageSubscription navigate={setCurrentScreen} />;
       case 'history':

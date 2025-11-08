@@ -88,18 +88,48 @@ const PixPayment: React.FC = () => {
         setIsLoading(true);
         setNotification(null);
 
-        // --- MOCK STATUS CHECK ---
-        setTimeout(() => {
-            const amountPaid = parseFloat(amountBRL);
-            const creditsToAdd = Math.floor(amountPaid * PIX_CONVERSION_RATE);
-            
-            addCredits(creditsToAdd, `Recarga via PIX de R$ ${amountPaid.toFixed(2)}`, TransactionType.CREDIT_PURCHASE);
-            
-            setNotification({ message: '✅ Pagamento confirmado! Créditos adicionados.', type: 'success' });
-            setPaymentData(null);
-            setAmountBRL('');
+        try {
+            // Check payment status in database
+            const { data: payment, error } = await supabase
+                .from('external_payments')
+                .select('status')
+                .eq('provider_payment_id', paymentData.paymentId.toString())
+                .single();
+
+            if (error) {
+                console.error('Error checking payment status:', error);
+                setNotification({ message: 'Erro ao verificar status. Tente novamente.', type: 'error' });
+                setTimeout(() => setNotification(null), 3000);
+                setIsLoading(false);
+                return;
+            }
+
+            if (payment && payment.status === 'succeeded') {
+                setNotification({ message: '✅ Pagamento confirmado! Créditos adicionados.', type: 'success' });
+                setPaymentData(null);
+                setAmountBRL('');
+                // Reload user balance
+                if (currentUser) {
+                    const { data: profile } = await supabase
+                        .from('profiles')
+                        .select('credits_balance')
+                        .eq('id', currentUser.id)
+                        .single();
+                    if (profile) {
+                        window.location.reload(); // Reload to update balance
+                    }
+                }
+            } else {
+                setNotification({ message: '⏳ Pagamento ainda pendente. Aguarde alguns segundos.', type: 'error' });
+                setTimeout(() => setNotification(null), 3000);
+            }
+        } catch (error) {
+            console.error('Error in handleCheckStatus:', error);
+            setNotification({ message: 'Erro ao verificar status.', type: 'error' });
+            setTimeout(() => setNotification(null), 3000);
+        } finally {
             setIsLoading(false);
-        }, 1000);
+        }
     };
 
     const handleCopy = () => {
